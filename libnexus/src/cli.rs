@@ -125,8 +125,19 @@ impl Completer for NexusHelper {
             let prefix = parts.first().copied().unwrap_or("");
             let start = pos - prefix.len();
 
+            let mut services: Vec<Pair> = self
+                .commands
+                .keys()
+                .filter(|s| s.starts_with(prefix))
+                .map(|s| Pair {
+                    display: s.clone(),
+                    replacement: s.clone(),
+                })
+                .collect();
+            services.sort_by(|a, b| a.display.cmp(&b.display));
+
             let builtins = ["help", "quit", "exit"];
-            let mut candidates: Vec<Pair> = builtins
+            let mut builtin_pairs: Vec<Pair> = builtins
                 .iter()
                 .filter(|b| b.starts_with(prefix))
                 .map(|b| Pair {
@@ -134,17 +145,10 @@ impl Completer for NexusHelper {
                     replacement: b.to_string(),
                 })
                 .collect();
+            builtin_pairs.sort_by(|a, b| a.display.cmp(&b.display));
 
-            for svc_name in self.commands.keys() {
-                if svc_name.starts_with(prefix) {
-                    candidates.push(Pair {
-                        display: svc_name.clone(),
-                        replacement: svc_name.clone(),
-                    });
-                }
-            }
-
-            candidates.sort_by(|a, b| a.display.cmp(&b.display));
+            let mut candidates = services;
+            candidates.append(&mut builtin_pairs);
             return Ok((start, candidates));
         }
 

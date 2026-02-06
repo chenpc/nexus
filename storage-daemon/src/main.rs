@@ -1,7 +1,12 @@
-mod services;
+mod services {
+    pub mod block;
+    pub mod network;
+    pub mod pool;
+    pub mod volume;
+}
 
 use libnexus::NexusServer;
-use services::{Block, Network, Pool, Volume};
+use services::{block::Block, network::Network, pool::Pool, volume::Volume};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
