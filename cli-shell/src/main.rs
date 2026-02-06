@@ -1,4 +1,4 @@
-use nexus::NexusCli;
+use libnexus::NexusCli;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

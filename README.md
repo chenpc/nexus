@@ -2,6 +2,13 @@
 
 A Rust framework for building gRPC-based microservices with macro-driven command dispatch.
 
+## Workspace Structure
+
+- **`libnexus/`** — Core framework library (server, CLI, registry, proto, derive macro re-export)
+  - **`libnexus/nexus-derive/`** — Proc macro crate (`#[nexus_service]`, `#[command]`)
+- **`storage-daemon/`** — Example gRPC server
+- **`cli-shell/`** — Example CLI client
+
 ## Prerequisites
 
 ### Ubuntu/Debian
@@ -28,8 +35,8 @@ cargo build
 
 ```bash
 # Start the example server
-cargo run -p volume-example --bin server
+cargo run -p storage-daemon
 
 # In another terminal, start the CLI client
-cargo run -p volume-example --bin cli
+cargo run -p cli-shell
 ```

@@ -1,4 +1,4 @@
-use nexus::{nexus_service, NexusServer};
+use libnexus::{nexus_service, NexusServer};
 
 pub struct Volume;
 

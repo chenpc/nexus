@@ -1,10 +1,10 @@
 [package]
-name = "nexus"
+name = "libnexus"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-nexus-derive = { path = "../nexus-derive" }
+nexus-derive = { path = "nexus-derive" }
 tonic = "0.12"
 prost = "0.13"
 tokio = { version = "1", features = ["full"] }

@@ -12,21 +12,22 @@ Nexus is a Rust framework for building gRPC-based microservices with a macro-dri
 cargo build                                    # Build entire workspace
 cargo build --release                          # Optimized build
 cargo test                                     # Run all tests
-cargo test -p nexus                            # Run tests for core crate only
+cargo test -p libnexus                         # Run tests for core library crate
 cargo test -p nexus-derive                     # Run tests for derive macro crate
-cargo run -p volume-example --bin server       # Run example gRPC server
-cargo run -p volume-example --bin cli          # Run example CLI client
+cargo run -p storage-daemon                    # Run example gRPC server
+cargo run -p cli-shell                         # Run example CLI client
 ```
 
-Proto files are compiled automatically via `nexus/build.rs` using `tonic-build` during `cargo build`.
+Proto files are compiled automatically via `libnexus/build.rs` using `tonic-build` during `cargo build`.
 
 ## Workspace Structure
 
-Three crates in a Cargo workspace:
+Four crates in a Cargo workspace:
 
-- **`nexus/`** — Core framework library: gRPC server (`server.rs`), service registry (`registry.rs`), CLI client (`cli.rs`), and protobuf definitions (`proto/nexus.proto`)
-- **`nexus-derive/`** — Proc macro crate providing `#[nexus_service]` and `#[command]` attribute macros
-- **`examples/volume/`** — Example demonstrating framework usage with Volume and Pool services
+- **`libnexus/`** — Core framework library: gRPC server (`server.rs`), service registry (`registry.rs`), CLI client (`cli.rs`), and protobuf definitions (`proto/nexus.proto`)
+- **`libnexus/nexus-derive/`** — Proc macro crate providing `#[nexus_service]` and `#[command]` attribute macros
+- **`storage-daemon/`** — Example gRPC server with Volume and Pool services
+- **`cli-shell/`** — Example CLI client connecting to the server
 
 ## Architecture
 
@@ -43,14 +44,14 @@ Three crates in a Cargo workspace:
 
 ### Key Traits and Types
 
-- **`Service` trait** (`registry.rs`): `name()`, `commands()`, `execute(action, args)` — all async
-- **`Registry`** (`registry.rs`): holds registered services, dispatches by service name
-- **`NexusServer`** (`server.rs`): builder pattern for registering services and starting the gRPC server
-- **`NexusCli`** (`cli.rs`): connects to server, fetches service list, runs interactive REPL
+- **`Service` trait** (`libnexus/src/registry.rs`): `name()`, `commands()`, `execute(action, args)` — all async
+- **`Registry`** (`libnexus/src/registry.rs`): holds registered services, dispatches by service name
+- **`NexusServer`** (`libnexus/src/server.rs`): builder pattern for registering services and starting the gRPC server
+- **`NexusCli`** (`libnexus/src/cli.rs`): connects to server, fetches service list, runs interactive REPL
 
 ### Key Conventions
 
 - All service commands are async and return `anyhow::Result<String>`
 - Arguments are string-based (`Vec<String>`) for uniform gRPC/CLI transport
-- gRPC protocol defined in `nexus/proto/nexus.proto` with `NexusService` having `Execute` and `ListServices` RPCs
+- gRPC protocol defined in `libnexus/proto/nexus.proto` with `NexusService` having `Execute` and `ListServices` RPCs
 - Uses tonic 0.12 / prost 0.13 for gRPC, tokio for async runtime

@@ -97,7 +97,7 @@ pub fn nexus_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 });
 
                 command_infos.push(quote! {
-                    nexus::CommandInfo {
+                    libnexus::CommandInfo {
                         name: #method_name_str.to_string(),
                         args: vec![#(#param_name_strings.to_string()),*],
                         description: #doc.to_string(),
@@ -138,12 +138,12 @@ pub fn nexus_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         #[async_trait::async_trait]
-        impl nexus::Service for #self_ty {
+        impl libnexus::Service for #self_ty {
             fn name(&self) -> &str {
                 #service_name
             }
 
-            fn commands(&self) -> Vec<nexus::CommandInfo> {
+            fn commands(&self) -> Vec<libnexus::CommandInfo> {
                 vec![#(#command_infos),*]
             }
 
