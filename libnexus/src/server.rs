@@ -94,8 +94,9 @@ impl NexusService for NexusGrpcService {
             .registry
             .list_services()
             .into_iter()
-            .map(|(name, commands)| ServiceInfo {
+            .map(|(name, description, commands)| ServiceInfo {
                 name: name.to_string(),
+                description: description.to_string(),
                 commands: commands
                     .into_iter()
                     .map(|c| CommandDef {
@@ -106,6 +107,7 @@ impl NexusService for NexusGrpcService {
                                 name: a.name,
                                 hint: a.hint,
                                 completer: a.completer,
+                                description: a.description,
                             })
                             .collect(),
                         description: c.description,

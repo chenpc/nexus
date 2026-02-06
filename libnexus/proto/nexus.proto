@@ -27,12 +27,14 @@ message ListServicesResponse {
 message ServiceInfo {
     string name = 1;
     repeated CommandDef commands = 2;
+    string description = 3;
 }
 
 message ArgDef {
     string name = 1;
     string hint = 2;
     string completer = 3;
+    string description = 4;
 }
 
 message CommandDef {

@@ -10,6 +10,8 @@ pub struct ArgInfo {
     pub hint: String,
     /// Completer reference in "service.command" form (e.g. "block.list").
     pub completer: String,
+    /// Human-readable description of this argument.
+    pub description: String,
 }
 
 /// Metadata about a single command on a service.
@@ -25,6 +27,9 @@ pub struct CommandInfo {
 pub trait Service: Send + Sync + 'static {
     /// The service name used for dispatch (e.g., "volume").
     fn name(&self) -> &str;
+
+    /// Human-readable description of the service (from doc comments on the impl block).
+    fn description(&self) -> &str;
 
     /// List of commands this service supports.
     fn commands(&self) -> Vec<CommandInfo>;
@@ -63,10 +68,10 @@ impl Registry {
         service.execute(action, args).await
     }
 
-    pub fn list_services(&self) -> Vec<(&str, Vec<CommandInfo>)> {
+    pub fn list_services(&self) -> Vec<(&str, &str, Vec<CommandInfo>)> {
         self.services
             .iter()
-            .map(|(name, svc)| (name.as_str(), svc.commands()))
+            .map(|(name, svc)| (name.as_str(), svc.description(), svc.commands()))
             .collect()
     }
 }

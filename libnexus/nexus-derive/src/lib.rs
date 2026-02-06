@@ -35,29 +35,43 @@ fn strip_command_attr(attrs: &[Attribute]) -> Vec<&Attribute> {
         .collect()
 }
 
-/// Parse `#[arg(hint = "...", complete = "...")]` from parameter attributes.
-fn parse_arg_attr(attrs: &[Attribute]) -> (String, String) {
-    let mut hint = String::new();
-    let mut completer = String::new();
+/// Parsed metadata from `#[arg(...)]` on a parameter.
+struct ArgMeta {
+    hint: String,
+    completer: String,
+    description: String,
+}
+
+/// Parse `#[arg(hint = "...", complete = "...", doc = "...")]` from parameter attributes.
+fn parse_arg_attr(attrs: &[Attribute]) -> ArgMeta {
+    let mut meta = ArgMeta {
+        hint: String::new(),
+        completer: String::new(),
+        description: String::new(),
+    };
 
     for attr in attrs {
         if attr.path().is_ident("arg") {
-            let _ = attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("hint") {
-                    let value = meta.value()?;
+            let _ = attr.parse_nested_meta(|nested| {
+                if nested.path.is_ident("hint") {
+                    let value = nested.value()?;
                     let lit: syn::LitStr = value.parse()?;
-                    hint = lit.value();
-                } else if meta.path.is_ident("complete") {
-                    let value = meta.value()?;
+                    meta.hint = lit.value();
+                } else if nested.path.is_ident("complete") {
+                    let value = nested.value()?;
                     let lit: syn::LitStr = value.parse()?;
-                    completer = lit.value();
+                    meta.completer = lit.value();
+                } else if nested.path.is_ident("doc") {
+                    let value = nested.value()?;
+                    let lit: syn::LitStr = value.parse()?;
+                    meta.description = lit.value();
                 }
                 Ok(())
             });
         }
     }
 
-    (hint, completer)
+    meta
 }
 
 /// Strip `#[arg(...)]` attributes from a function signature's parameters.
@@ -75,10 +89,11 @@ fn strip_arg_attrs(sig: &syn::Signature) -> syn::Signature {
 pub fn nexus_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemImpl);
 
-    // Extract the struct name from the impl block.
+    // Extract the struct name and service-level doc comment from the impl block.
     let self_ty = &input.self_ty;
     let struct_name = quote!(#self_ty).to_string();
     let service_name = struct_name.to_lowercase();
+    let service_doc = extract_doc_comment(&input.attrs);
 
     let mut command_infos = Vec::new();
     let mut match_arms = Vec::new();
@@ -91,21 +106,23 @@ pub fn nexus_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 let method_name_str = method_name.to_string();
                 let doc = extract_doc_comment(&method.attrs);
 
-                // Collect parameter names, hints, and completers (skip &self).
+                // Collect parameter names, hints, completers, and docs (skip &self).
                 let mut param_names = Vec::new();
                 let mut param_name_strings = Vec::new();
                 let mut param_hints = Vec::new();
                 let mut param_completers = Vec::new();
+                let mut param_descriptions = Vec::new();
 
                 for arg in method.sig.inputs.iter().skip(1) {
                     if let FnArg::Typed(pat_type) = arg {
                         if let Pat::Ident(pat_ident) = &*pat_type.pat {
                             let name = &pat_ident.ident;
-                            let (hint, completer) = parse_arg_attr(&pat_type.attrs);
+                            let arg_meta = parse_arg_attr(&pat_type.attrs);
                             param_names.push(name.clone());
                             param_name_strings.push(name.to_string());
-                            param_hints.push(hint);
-                            param_completers.push(completer);
+                            param_hints.push(arg_meta.hint);
+                            param_completers.push(arg_meta.completer);
+                            param_descriptions.push(arg_meta.description);
                         }
                     }
                 }
@@ -144,6 +161,7 @@ pub fn nexus_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             name: #param_name_strings.to_string(),
                             hint: #param_hints.to_string(),
                             completer: #param_completers.to_string(),
+                            description: #param_descriptions.to_string(),
                         }),*],
                         description: #doc.to_string(),
                     }
@@ -178,6 +196,10 @@ pub fn nexus_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
         impl libnexus::Service for #self_ty {
             fn name(&self) -> &str {
                 #service_name
+            }
+
+            fn description(&self) -> &str {
+                #service_doc
             }
 
             fn commands(&self) -> Vec<libnexus::CommandInfo> {

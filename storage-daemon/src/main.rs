@@ -1,7 +1,7 @@
 mod services;
 
 use libnexus::NexusServer;
-use services::{Block, Pool, Volume};
+use services::{Block, Network, Pool, Volume};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -12,6 +12,7 @@ async fn main() -> anyhow::Result<()> {
     NexusServer::new()
         .register(Volume)
         .register(Block)
+        .register(Network)
         .register(Pool)
         .serve(&addr)
         .await

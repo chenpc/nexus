@@ -2,6 +2,7 @@ use libnexus::nexus_service;
 
 pub struct Block;
 
+/// Query and inspect block devices.
 #[nexus_service]
 impl Block {
     /// List all block devices.
@@ -12,7 +13,7 @@ impl Block {
 
     /// Show info for a block device.
     #[command]
-    async fn info(&self, device: String) -> anyhow::Result<String> {
+    async fn info(&self, #[arg(doc = "Device path to inspect", complete = "block.list")] device: String) -> anyhow::Result<String> {
         Ok(format!("Block device '{}': size=500G, type=SSD", device))
     }
 }

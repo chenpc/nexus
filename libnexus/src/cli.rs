@@ -36,6 +36,8 @@ struct NexusHelper {
     client: NexusServiceClient<Channel>,
     /// Tokio runtime handle for bridging async calls from the sync completer.
     handle: tokio::runtime::Handle,
+    /// Length of the last input line seen (updated by the hinter on each keystroke).
+    last_input_len: std::sync::Mutex<usize>,
 }
 
 impl NexusHelper {
@@ -61,6 +63,7 @@ impl NexusHelper {
             arg_info,
             client,
             handle,
+            last_input_len: std::sync::Mutex::new(0),
         }
     }
 
@@ -145,6 +148,26 @@ impl Completer for NexusHelper {
             return Ok((start, candidates));
         }
 
+        // Typing the second word after "help": complete service names.
+        if (parts.len() == 1 || (parts.len() == 2 && !line.ends_with(' ')))
+            && parts[0] == "help"
+        {
+            let prefix = if parts.len() == 2 { parts[1] } else { "" };
+            let start = pos - prefix.len();
+
+            let mut candidates: Vec<Pair> = self
+                .commands
+                .keys()
+                .filter(|s| s.starts_with(prefix))
+                .map(|s| Pair {
+                    display: s.clone(),
+                    replacement: s.clone(),
+                })
+                .collect();
+            candidates.sort_by(|a, b| a.display.cmp(&b.display));
+            return Ok((start, candidates));
+        }
+
         // Typing the second word: complete command names for the given service.
         if parts.len() == 1 || (parts.len() == 2 && !line.ends_with(' ')) {
             let service = parts[0];
@@ -204,6 +227,7 @@ impl Hinter for NexusHelper {
     type Hint = ArgHint;
 
     fn hint(&self, line: &str, pos: usize, _ctx: &Context<'_>) -> Option<ArgHint> {
+        *self.last_input_len.lock().unwrap() = line.len();
         let line = &line[..pos];
         let parts: Vec<&str> = line.split_whitespace().collect();
 
@@ -296,7 +320,20 @@ impl NexusCli {
         loop {
             let line = match rl.readline("cli> ") {
                 Ok(line) => line,
-                Err(ReadlineError::Interrupted | ReadlineError::Eof) => break,
+                Err(ReadlineError::Interrupted) => {
+                    // Move cursor up to the input line and position right after the
+                    // text, then print ^C.  Column is 1-based: prompt "cli> " (5)
+                    // + input length + 1.
+                    let prompt_len = 5; // "cli> "
+                    let input_len = rl
+                        .helper()
+                        .map(|h| *h.last_input_len.lock().unwrap())
+                        .unwrap_or(0);
+                    let col = prompt_len + input_len + 1;
+                    print!("\x1b[A\x1b[{col}G^C\n");
+                    continue;
+                }
+                Err(ReadlineError::Eof) => break,
                 Err(e) => return Err(e.into()),
             };
 
@@ -311,12 +348,17 @@ impl NexusCli {
                 break;
             }
 
-            if line == "help" {
-                print_help(&services);
+            let parts: Vec<&str> = line.split_whitespace().collect();
+
+            if parts[0] == "help" {
+                if parts.len() >= 2 {
+                    print_service_help(&services, parts[1]);
+                } else {
+                    print_help(&services);
+                }
                 continue;
             }
 
-            let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() < 2 {
                 println!("Usage: <service> <command> [args...]");
                 continue;
@@ -346,10 +388,58 @@ impl NexusCli {
     }
 }
 
+fn print_service_help(services: &[ServiceInfo], name: &str) {
+    let Some(svc) = services.iter().find(|s| s.name == name) else {
+        println!("Unknown service '{}'. Type 'help' to list all services.", name);
+        return;
+    };
+    if svc.description.is_empty() {
+        println!("{}:", svc.name);
+    } else {
+        println!("{}: {}", svc.name, svc.description);
+    }
+    println!();
+    for cmd in &svc.commands {
+        let args_str = cmd
+            .args
+            .iter()
+            .map(|a| {
+                let label = if a.hint.is_empty() { &a.name } else { &a.hint };
+                format!("<{}>", label)
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        println!("  {} {}", cmd.name, args_str);
+        if !cmd.description.is_empty() {
+            println!("    {}", cmd.description);
+        }
+        for arg in &cmd.args {
+            let label = if arg.hint.is_empty() { &arg.name } else { &arg.hint };
+            let has_desc = !arg.description.is_empty();
+            let has_comp = !arg.completer.is_empty();
+            if has_desc || has_comp {
+                let mut parts = vec![format!("    <{}>", label)];
+                if has_desc {
+                    parts.push(arg.description.clone());
+                }
+                if has_comp {
+                    parts.push(format!("(completions from {})", arg.completer));
+                }
+                println!("{}", parts.join(" - "));
+            }
+        }
+        println!();
+    }
+}
+
 fn print_help(services: &[ServiceInfo]) {
     println!("Available commands:");
     for svc in services {
-        println!("  {}:", svc.name);
+        if svc.description.is_empty() {
+            println!("  {}:", svc.name);
+        } else {
+            println!("  {}: {}", svc.name, svc.description);
+        }
         for cmd in &svc.commands {
             let args_str = cmd
                 .args
