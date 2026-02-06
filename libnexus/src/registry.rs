@@ -2,11 +2,21 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
 
+/// Metadata about a single argument on a command.
+#[derive(Debug, Clone)]
+pub struct ArgInfo {
+    pub name: String,
+    /// Display hint shown to the user (e.g. "volume name"). Falls back to `name` if empty.
+    pub hint: String,
+    /// Completer reference in "service.command" form (e.g. "block.list").
+    pub completer: String,
+}
+
 /// Metadata about a single command on a service.
 #[derive(Debug, Clone)]
 pub struct CommandInfo {
     pub name: String,
-    pub args: Vec<String>,
+    pub args: Vec<ArgInfo>,
     pub description: String,
 }
 

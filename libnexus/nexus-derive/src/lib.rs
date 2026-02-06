@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Attribute, FnArg, ImplItem, ItemImpl, Pat, ReturnType};
+use syn::{parse_macro_input, Attribute, FnArg, ImplItem, ItemImpl, Pat};
 
 /// Extract doc comment strings from attributes.
 fn extract_doc_comment(attrs: &[Attribute]) -> String {
@@ -35,6 +35,42 @@ fn strip_command_attr(attrs: &[Attribute]) -> Vec<&Attribute> {
         .collect()
 }
 
+/// Parse `#[arg(hint = "...", complete = "...")]` from parameter attributes.
+fn parse_arg_attr(attrs: &[Attribute]) -> (String, String) {
+    let mut hint = String::new();
+    let mut completer = String::new();
+
+    for attr in attrs {
+        if attr.path().is_ident("arg") {
+            let _ = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("hint") {
+                    let value = meta.value()?;
+                    let lit: syn::LitStr = value.parse()?;
+                    hint = lit.value();
+                } else if meta.path.is_ident("complete") {
+                    let value = meta.value()?;
+                    let lit: syn::LitStr = value.parse()?;
+                    completer = lit.value();
+                }
+                Ok(())
+            });
+        }
+    }
+
+    (hint, completer)
+}
+
+/// Strip `#[arg(...)]` attributes from a function signature's parameters.
+fn strip_arg_attrs(sig: &syn::Signature) -> syn::Signature {
+    let mut sig = sig.clone();
+    for input in &mut sig.inputs {
+        if let FnArg::Typed(pat_type) = input {
+            pat_type.attrs.retain(|attr| !attr.path().is_ident("arg"));
+        }
+    }
+    sig
+}
+
 #[proc_macro_attribute]
 pub fn nexus_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemImpl);
@@ -55,16 +91,21 @@ pub fn nexus_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 let method_name_str = method_name.to_string();
                 let doc = extract_doc_comment(&method.attrs);
 
-                // Collect parameter names and types (skip &self).
+                // Collect parameter names, hints, and completers (skip &self).
                 let mut param_names = Vec::new();
                 let mut param_name_strings = Vec::new();
+                let mut param_hints = Vec::new();
+                let mut param_completers = Vec::new();
 
                 for arg in method.sig.inputs.iter().skip(1) {
                     if let FnArg::Typed(pat_type) = arg {
                         if let Pat::Ident(pat_ident) = &*pat_type.pat {
                             let name = &pat_ident.ident;
+                            let (hint, completer) = parse_arg_attr(&pat_type.attrs);
                             param_names.push(name.clone());
                             param_name_strings.push(name.to_string());
+                            param_hints.push(hint);
+                            param_completers.push(completer);
                         }
                     }
                 }
@@ -99,28 +140,24 @@ pub fn nexus_service(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 command_infos.push(quote! {
                     libnexus::CommandInfo {
                         name: #method_name_str.to_string(),
-                        args: vec![#(#param_name_strings.to_string()),*],
+                        args: vec![#(libnexus::ArgInfo {
+                            name: #param_name_strings.to_string(),
+                            hint: #param_hints.to_string(),
+                            completer: #param_completers.to_string(),
+                        }),*],
                         description: #doc.to_string(),
                     }
                 });
 
-                // Rebuild method without #[command] attribute.
+                // Rebuild method without #[command] and #[arg] attributes.
                 let remaining_attrs = strip_command_attr(&method.attrs);
                 let vis = &method.vis;
-                let sig = &method.sig;
+                let sig = strip_arg_attrs(&method.sig);
                 let block = &method.block;
-                let has_return = !matches!(&sig.output, ReturnType::Default);
-                if has_return {
-                    cleaned_methods.push(quote! {
-                        #(#remaining_attrs)*
-                        #vis #sig #block
-                    });
-                } else {
-                    cleaned_methods.push(quote! {
-                        #(#remaining_attrs)*
-                        #vis #sig #block
-                    });
-                }
+                cleaned_methods.push(quote! {
+                    #(#remaining_attrs)*
+                    #vis #sig #block
+                });
             } else {
                 // Non-command methods pass through unchanged.
                 cleaned_methods.push(quote! { #item });

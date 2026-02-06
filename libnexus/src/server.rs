@@ -1,10 +1,12 @@
 use crate::proto::nexus_service_server::{NexusService, NexusServiceServer};
 use crate::proto::{
-    CommandDef, CommandRequest, CommandResponse, ListServicesRequest, ListServicesResponse,
+    ArgDef, CommandDef, CommandRequest, CommandResponse, ListServicesRequest, ListServicesResponse,
     ServiceInfo,
 };
 use crate::registry::{Registry, Service};
 use std::sync::Arc;
+use tokio::net::UnixListener;
+use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{Request, Response, Status};
 
 /// gRPC server wrapping a service registry.
@@ -28,16 +30,35 @@ impl NexusServer {
     }
 
     /// Start the gRPC server on the given address.
+    ///
+    /// If `addr` contains `:` it is treated as a TCP socket address (e.g.
+    /// `[::1]:50051`).  Otherwise it is treated as a Unix domain socket path
+    /// (e.g. `/tmp/nexus.sock`).
     pub async fn serve(self, addr: &str) -> anyhow::Result<()> {
-        let addr = addr.parse()?;
         let grpc_service = NexusGrpcService {
             registry: self.registry,
         };
-        println!("Nexus server listening on {}", addr);
-        tonic::transport::Server::builder()
-            .add_service(NexusServiceServer::new(grpc_service))
-            .serve(addr)
-            .await?;
+        let svc = NexusServiceServer::new(grpc_service);
+
+        if addr.contains(':') {
+            let sock_addr = addr.parse()?;
+            println!("Nexus server listening on {}", sock_addr);
+            tonic::transport::Server::builder()
+                .add_service(svc)
+                .serve(sock_addr)
+                .await?;
+        } else {
+            // Remove a stale socket file if it exists.
+            let _ = std::fs::remove_file(addr);
+            let uds = UnixListener::bind(addr)?;
+            let stream = UnixListenerStream::new(uds);
+            println!("Nexus server listening on {}", addr);
+            tonic::transport::Server::builder()
+                .add_service(svc)
+                .serve_with_incoming(stream)
+                .await?;
+        }
+
         Ok(())
     }
 }
@@ -79,7 +100,14 @@ impl NexusService for NexusGrpcService {
                     .into_iter()
                     .map(|c| CommandDef {
                         name: c.name,
-                        args: c.args,
+                        args: c.args
+                            .into_iter()
+                            .map(|a| ArgDef {
+                                name: a.name,
+                                hint: a.hint,
+                                completer: a.completer,
+                            })
+                            .collect(),
                         description: c.description,
                     })
                     .collect(),

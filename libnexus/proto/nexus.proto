@@ -29,8 +29,14 @@ message ServiceInfo {
     repeated CommandDef commands = 2;
 }
 
+message ArgDef {
+    string name = 1;
+    string hint = 2;
+    string completer = 3;
+}
+
 message CommandDef {
     string name = 1;
-    repeated string args = 2;
+    repeated ArgDef args = 2;
     string description = 3;
 }
