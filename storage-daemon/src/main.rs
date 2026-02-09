@@ -9,7 +9,7 @@ use libnexus::NexusServer;
 use services::{block::Block, network::Network, pool::Pool, volume::Volume};
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> libnexus::Result<()> {
     let addr = std::env::args()
         .nth(1)
         .unwrap_or_else(|| libnexus::DEFAULT_ENDPOINT.to_string());
@@ -21,5 +21,4 @@ async fn main() -> anyhow::Result<()> {
         .register(Pool)
         .serve(&addr)
         .await
-        .map_err(|e| anyhow::anyhow!("{e}"))
 }
