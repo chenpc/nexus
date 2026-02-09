@@ -21,4 +21,5 @@ async fn main() -> anyhow::Result<()> {
         .register(Pool)
         .serve(&addr)
         .await
+        .map_err(|e| anyhow::anyhow!("{e}"))
 }

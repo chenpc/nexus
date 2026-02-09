@@ -9,3 +9,7 @@ members = [
 ]
 exclude = ["yocto"]
 
+[patch."https://github.com/chenpc/libnexus.git"]
+libnexus = { path = "libnexus" }
+nexus-derive = { path = "libnexus/nexus-derive" }
+
