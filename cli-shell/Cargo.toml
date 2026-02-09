@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 libnexus = { git = "https://github.com/chenpc/libnexus.git" }
 tokio = { version = "1", features = ["full"] }
+anyhow = "1"
