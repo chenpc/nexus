@@ -2,9 +2,10 @@
 name = "storage-daemon"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/chenpc/storage-daemon"
 
 [dependencies]
-libnexus = { path = "../libnexus" }
+libnexus = { git = "https://github.com/chenpc/libnexus.git" }
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 anyhow = "1"

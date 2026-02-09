@@ -5,4 +5,7 @@ members = [
     "libnexus",
     "storage-daemon",
     "cli-shell",
+    "integration-tests",
 ]
+exclude = ["yocto"]
+
